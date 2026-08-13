@@ -1,0 +1,604 @@
+-- vibecoded with gemini, do whatever you will with this
+-- Modern Luau Custom GUI Hub for MM2 (Bulletproof Layering, Toggle & Drag)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+-- Prevent UI Duplication
+if CoreGui:FindFirstChild("MM2VibeHub") then
+    CoreGui.MM2VibeHub:Destroy()
+end
+
+--------------------------------------------------------------------
+-- SAFE PARENT ROUTING & TOP-LAYER DISPLAY
+--------------------------------------------------------------------
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MM2VibeHub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.DisplayOrder = 999999999 -- Renders over MM2 default interfaces
+
+if LocalPlayer:FindFirstChild("PlayerGui") then
+    ScreenGui.Parent = LocalPlayer.PlayerGui
+elseif gethui then
+    ScreenGui.Parent = gethui()
+else
+    ScreenGui.Parent = CoreGui
+end
+
+--------------------------------------------------------------------
+-- FLOATING TOGGLE BUTTON (POSITIONED OUTSIDE SIDEBAR)
+--------------------------------------------------------------------
+local OpenBtn = Instance.new("TextButton")
+OpenBtn.Name = "OpenButton"
+OpenBtn.Size = UDim2.new(0, 45, 0, 45)
+OpenBtn.Position = UDim2.new(0, 120, 0.5, -22) -- Shifted right to clear MM2's left menu
+OpenBtn.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+OpenBtn.BorderSizePixel = 0
+OpenBtn.Text = "⚡"
+OpenBtn.TextColor3 = Color3.fromRGB(120, 150, 255)
+OpenBtn.TextSize = 20
+OpenBtn.Font = Enum.Font.GothamBold
+OpenBtn.Active = true
+OpenBtn.Selectable = true
+OpenBtn.ZIndex = 1000 -- Forces button to render above MM2 buttons
+OpenBtn.Parent = ScreenGui
+
+local OpenCorner = Instance.new("UICorner")
+OpenCorner.CornerRadius = UDim.new(0, 10)
+OpenCorner.Parent = OpenBtn
+
+local OpenStroke = Instance.new("UIStroke")
+OpenStroke.Color = Color3.fromRGB(45, 45, 60)
+OpenStroke.Thickness = 1.5
+OpenStroke.Parent = OpenBtn
+
+--------------------------------------------------------------------
+-- MAIN FRAME
+--------------------------------------------------------------------
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 320, 0, 290)
+MainFrame.Position = UDim2.new(0.5, -160, 0.5, -145)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Visible = false
+MainFrame.ZIndex = 1001
+MainFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = MainFrame
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Color3.fromRGB(35, 35, 48)
+MainStroke.Thickness = 1.5
+MainStroke.Parent = MainFrame
+
+--------------------------------------------------------------------
+-- DIRECT DRAG & CLICK TOGGLE SYSTEM
+--------------------------------------------------------------------
+local isDragging = false
+local dragMoved = false
+local dragStartPos = Vector2.zero
+local startBtnPos = UDim2.new()
+
+OpenBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDragging = true
+        dragMoved = false
+        dragStartPos = Vector2.new(input.Position.X, input.Position.Y)
+        startBtnPos = OpenBtn.Position
+
+        local conn
+        conn = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                isDragging = false
+                conn:Disconnect()
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local currentPos = Vector2.new(input.Position.X, input.Position.Y)
+        local delta = currentPos - dragStartPos
+        
+        if delta.Magnitude > 4 then
+            dragMoved = true
+            OpenBtn.Position = UDim2.new(
+                startBtnPos.X.Scale, startBtnPos.X.Offset + delta.X,
+                startBtnPos.Y.Scale, startBtnPos.Y.Offset + delta.Y
+            )
+        end
+    end
+end)
+
+local function ToggleUI()
+    if not dragMoved then
+        MainFrame.Visible = not MainFrame.Visible
+    end
+end
+
+OpenBtn.Activated:Connect(ToggleUI)
+
+--------------------------------------------------------------------
+-- HEADER & CLOSE BUTTON
+--------------------------------------------------------------------
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 45)
+Header.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+Header.BorderSizePixel = 0
+Header.ZIndex = 1002
+Header.Parent = MainFrame
+
+local HeaderCorner = Instance.new("UICorner")
+HeaderCorner.CornerRadius = UDim.new(0, 12)
+HeaderCorner.Parent = Header
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -50, 1, 0)
+Title.Position = UDim2.new(0, 16, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "⚡ VIBE HUB <font color=\"#808080\">| MM2</font>"
+Title.RichText = true
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 14
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.ZIndex = 1003
+Title.Parent = Header
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -38, 0, 7)
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.Text = "✕"
+CloseBtn.TextColor3 = Color3.fromRGB(150, 150, 170)
+CloseBtn.TextSize = 14
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.ZIndex = 1003
+CloseBtn.Parent = Header
+
+CloseBtn.Activated:Connect(function()
+    MainFrame.Visible = false
+end)
+
+--------------------------------------------------------------------
+-- ROW GENERATOR & SWITCH ANIMATIONS
+--------------------------------------------------------------------
+local function CreateToggleRow(titleText, subtitleText, yPos)
+    local RowFrame = Instance.new("Frame")
+    RowFrame.Size = UDim2.new(1, -24, 0, 58)
+    RowFrame.Position = UDim2.new(0, 12, 0, yPos)
+    RowFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+    RowFrame.BorderSizePixel = 0
+    RowFrame.ZIndex = 1002
+    RowFrame.Parent = MainFrame
+
+    local RowCorner = Instance.new("UICorner")
+    RowCorner.CornerRadius = UDim.new(0, 8)
+    RowCorner.Parent = RowFrame
+
+    local RowStroke = Instance.new("UIStroke")
+    RowStroke.Color = Color3.fromRGB(35, 35, 45)
+    RowStroke.Thickness = 1
+    RowStroke.Parent = RowFrame
+
+    local TxtLabel = Instance.new("TextLabel")
+    TxtLabel.Size = UDim2.new(1, -70, 0, 20)
+    TxtLabel.Position = UDim2.new(0, 12, 0, 10)
+    TxtLabel.BackgroundTransparency = 1
+    TxtLabel.Text = titleText
+    TxtLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
+    TxtLabel.TextSize = 13
+    TxtLabel.Font = Enum.Font.GothamBold
+    TxtLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TxtLabel.ZIndex = 1003
+    TxtLabel.Parent = RowFrame
+
+    local SubLabel = Instance.new("TextLabel")
+    SubLabel.Size = UDim2.new(1, -70, 0, 18)
+    SubLabel.Position = UDim2.new(0, 12, 0, 28)
+    SubLabel.BackgroundTransparency = 1
+    SubLabel.Text = subtitleText
+    SubLabel.TextColor3 = Color3.fromRGB(130, 130, 150)
+    SubLabel.TextSize = 11
+    SubLabel.Font = Enum.Font.Gotham
+    SubLabel.TextXAlignment = Enum.TextXAlignment.Left
+    SubLabel.ZIndex = 1003
+    SubLabel.Parent = RowFrame
+
+    local SwitchTrack = Instance.new("Frame")
+    SwitchTrack.Size = UDim2.new(0, 42, 0, 22)
+    SwitchTrack.Position = UDim2.new(1, -54, 0.5, -11)
+    SwitchTrack.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+    SwitchTrack.BorderSizePixel = 0
+    SwitchTrack.ZIndex = 1003
+    SwitchTrack.Parent = RowFrame
+
+    local SwitchCorner = Instance.new("UICorner")
+    SwitchCorner.CornerRadius = UDim.new(1, 0)
+    SwitchCorner.Parent = SwitchTrack
+
+    local Knob = Instance.new("Frame")
+    Knob.Size = UDim2.new(0, 16, 0, 16)
+    Knob.Position = UDim2.new(0, 3, 0.5, -8)
+    Knob.BackgroundColor3 = Color3.fromRGB(180, 180, 190)
+    Knob.BorderSizePixel = 0
+    Knob.ZIndex = 1004
+    Knob.Parent = SwitchTrack
+
+    local KnobCorner = Instance.new("UICorner")
+    KnobCorner.CornerRadius = UDim.new(1, 0)
+    KnobCorner.Parent = Knob
+
+    local ClickBtn = Instance.new("TextButton")
+    ClickBtn.Size = UDim2.new(1, 0, 1, 0)
+    ClickBtn.BackgroundTransparency = 1
+    ClickBtn.Text = ""
+    ClickBtn.ZIndex = 1005
+    ClickBtn.Parent = RowFrame
+
+    return ClickBtn, SwitchTrack, Knob
+end
+
+local AimbotBtn, AimTrack, AimKnob = CreateToggleRow("Aimbot Lock", "Locks onto murderer with [E]", 58)
+local AutoFarmBtn, FarmTrack, FarmKnob = CreateToggleRow("Auto-Farm Coins", "Collects map coins automatically", 126)
+local EspBtn, EspTrack, EspKnob = CreateToggleRow("Role ESP", "Highlights Murderer & Sheriff", 194)
+
+local function UpdateSwitch(track, knob, state)
+    local trackColor = state and Color3.fromRGB(80, 110, 240) or Color3.fromRGB(40, 40, 52)
+    local knobPos = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+    local knobColor = state and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(180, 180, 190)
+
+    TweenService:Create(track, TweenInfo.new(0.2), {BackgroundColor3 = trackColor}):Play()
+    TweenService:Create(knob, TweenInfo.new(0.2), {Position = knobPos, BackgroundColor3 = knobColor}):Play()
+end
+
+--------------------------------------------------------------------
+-- 1. AIMBOT LOGIC
+--------------------------------------------------------------------
+local AimbotEnabled = false
+local isLocked = false
+local currentTarget = nil
+
+local TOGGLE_KEY = Enum.KeyCode.E
+local PREDICTION_FACTOR = 0.135
+local CAMERA_SMOOTHNESS = 0.25 
+local FOV_LIMIT = 250 
+
+local function isKnife(tool)
+    if not tool or not tool:IsA("Tool") then return false end
+    local weaponType = tool:GetAttribute("WeaponType") or tool:GetAttribute("Type") or tool:GetAttribute("Class")
+    if weaponType and string.find(tostring(weaponType):lower(), "knife") then return true end
+
+    for _, child in ipairs(tool:GetDescendants()) do
+        local name = child.Name:lower()
+        if (child:IsA("Animation") and (name:find("slash") or name:find("stab") or name:find("knife"))) or
+           ((child:IsA("BasePart") or child:IsA("SpecialMesh")) and (name:find("blade") or name:find("knife"))) then
+            return true
+        end
+    end
+    return false
+end
+
+local function hasKnife(player)
+    local char = player.Character
+    if char then
+        for _, item in ipairs(char:GetChildren()) do
+            if isKnife(item) then return true end
+        end
+    end
+    local backpack = player:FindFirstChild("Backpack")
+    if backpack then
+        for _, item in ipairs(backpack:GetChildren()) do
+            if isKnife(item) then return true end
+        end
+    end
+    return false
+end
+
+local function getClosestToCrosshair()
+    local closestPlayer = nil
+    local shortestDistance = FOV_LIMIT
+    local viewportCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and hasKnife(player) then
+            local char = player.Character
+            if char then
+                local humanoid = char:FindFirstChildOfClass("Humanoid")
+                local head = char:FindFirstChild("Head")
+
+                if humanoid and head and humanoid.Health > 0 then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                    if onScreen then
+                        local mouseDist = (Vector2.new(screenPos.X, screenPos.Y) - viewportCenter).Magnitude
+                        if mouseDist < shortestDistance then
+                            shortestDistance = mouseDist
+                            closestPlayer = player
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+local function isValidTarget(player)
+    if not player or not player.Character then return false end
+    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+    local head = player.Character:FindFirstChild("Head")
+    return humanoid and head and humanoid.Health > 0 and hasKnife(player)
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed or not AimbotEnabled then return end
+    if input.KeyCode == TOGGLE_KEY then
+        isLocked = not isLocked
+        if isLocked then
+            currentTarget = getClosestToCrosshair()
+            if not currentTarget then
+                isLocked = false
+            end
+        else
+            currentTarget = nil
+        end
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if not AimbotEnabled or not isLocked then return end
+
+    if not isValidTarget(currentTarget) then
+        currentTarget = getClosestToCrosshair()
+        if not currentTarget then
+            isLocked = false
+            return
+        end
+    end
+
+    local char = currentTarget.Character
+    local head = char:FindFirstChild("Head")
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+
+    if head and rootPart then
+        local rawVelocity = rootPart.AssemblyLinearVelocity
+        local adjustedVelocity = Vector3.new(rawVelocity.X, 0, rawVelocity.Z)
+        local predictedPosition = head.Position + (adjustedVelocity * PREDICTION_FACTOR)
+
+        local targetCFrame = CFrame.new(Camera.CFrame.Position, predictedPosition)
+        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, CAMERA_SMOOTHNESS)
+    end
+end)
+
+AimbotBtn.Activated:Connect(function()
+    AimbotEnabled = not AimbotEnabled
+    UpdateSwitch(AimTrack, AimKnob, AimbotEnabled)
+    if not AimbotEnabled then
+        isLocked = false
+    end
+end)
+
+--------------------------------------------------------------------
+-- 2. AUTO FARM LOGIC
+--------------------------------------------------------------------
+local AutoFarmEnabled = false
+local FARM_SPEED = 50
+
+local NoclipConnection
+local function ToggleNoclip(state)
+    if state then
+        NoclipConnection = RunService.Stepped:Connect(function()
+            if LocalPlayer.Character then
+                for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    else
+        if NoclipConnection then
+            NoclipConnection:Disconnect()
+            NoclipConnection = nil
+        end
+    end
+end
+
+local function isCoin(object)
+    if not object:IsA("BasePart") and not object:IsA("Model") then return false end
+    local name = object.Name:lower()
+    return name:find("coin") or name:find("gold") or name:find("token") or name:find("credit")
+end
+
+local function getCoins()
+    local coins = {}
+    for _, object in ipairs(Workspace:GetDescendants()) do
+        if isCoin(object) then
+            local targetPart = object:IsA("Model") and (object.PrimaryPart or object:FindFirstChildWhichIsA("BasePart")) or object
+            if targetPart then
+                table.insert(coins, targetPart)
+            end
+        end
+    end
+    return coins
+end
+
+task.spawn(function()
+    while true do
+        if AutoFarmEnabled then
+            local Character = LocalPlayer.Character
+            local RootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+            
+            if RootPart then
+                local coins = getCoins()
+                for _, coin in ipairs(coins) do
+                    if not AutoFarmEnabled then break end
+                    
+                    while coin and coin.Parent and LocalPlayer.Character and RootPart and AutoFarmEnabled do
+                        local currentPos = RootPart.Position
+                        local targetPos = coin.Position
+                        local distance = (targetPos - currentPos).Magnitude
+
+                        if distance < 3 then
+                            RootPart.CFrame = CFrame.new(targetPos)
+                            break
+                        end
+
+                        local direction = (targetPos - currentPos).Unit
+                        RootPart.CFrame = CFrame.new(currentPos + direction * (FARM_SPEED * RunService.RenderStepped:Wait()))
+                        RootPart.AssemblyLinearVelocity = Vector3.zero
+                    end
+                end
+            end
+        end
+        task.wait(0.5)
+    end
+end)
+
+AutoFarmBtn.Activated:Connect(function()
+    AutoFarmEnabled = not AutoFarmEnabled
+    UpdateSwitch(FarmTrack, FarmKnob, AutoFarmEnabled)
+    ToggleNoclip(AutoFarmEnabled)
+end)
+
+--------------------------------------------------------------------
+-- 3. DYNAMIC ROLE ESP LOGIC
+--------------------------------------------------------------------
+local ESPEnabled = false
+
+local function checkItemType(tool, keywords)
+    if not tool or not tool:IsA("Tool") then return false end
+
+    local weaponType = tool:GetAttribute("WeaponType") or tool:GetAttribute("Type") or tool:GetAttribute("Class")
+    if weaponType then
+        local typeStr = tostring(weaponType):lower()
+        for _, word in ipairs(keywords) do
+            if typeStr:find(word) then return true end
+        end
+    end
+
+    local toolName = tool.Name:lower()
+    for _, word in ipairs(keywords) do
+        if toolName:find(word) then return true end
+    end
+
+    for _, child in ipairs(tool:GetDescendants()) do
+        local childName = child.Name:lower()
+        for _, word in ipairs(keywords) do
+            if childName:find(word) then return true end
+        end
+    end
+
+    return false
+end
+
+local function hasGun(player)
+    local keywords = {"gun", "revolver", "pistol", "sheriff", "shoot"}
+    if player.Character then
+        for _, item in ipairs(player.Character:GetChildren()) do
+            if checkItemType(item, keywords) then return true end
+        end
+    end
+    if player:FindFirstChild("Backpack") then
+        for _, item in ipairs(player.Backpack:GetChildren()) do
+            if checkItemType(item, keywords) then return true end
+        end
+    end
+    return false
+end
+
+local function getRole(player)
+    if hasKnife(player) then
+        return "Murderer", Color3.fromRGB(255, 50, 50)
+    elseif hasGun(player) then
+        return "Sheriff", Color3.fromRGB(50, 150, 255)
+    else
+        return "Innocent", Color3.fromRGB(50, 255, 50)
+    end
+end
+
+local function removeESP(player)
+    if player.Character then
+        if player.Character:FindFirstChild("RoleBox") then player.Character.RoleBox:Destroy() end
+        local head = player.Character:FindFirstChild("Head")
+        if head and head:FindFirstChild("RoleESP") then head.RoleESP:Destroy() end
+    end
+end
+
+local function applyESP(player)
+    if player == LocalPlayer or not ESPEnabled then return end
+    local character = player.Character
+    if not character then return end
+
+    local head = character:FindFirstChild("Head")
+    if not head then return end
+
+    local billboard = head:FindFirstChild("RoleESP")
+    if not billboard then
+        billboard = Instance.new("BillboardGui")
+        billboard.Name = "RoleESP"
+        billboard.Adornee = head
+        billboard.Size = UDim2.new(0, 150, 0, 30)
+        billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+        billboard.AlwaysOnTop = true
+
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Name = "Label"
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.Font = Enum.Font.SourceSansBold
+        textLabel.TextSize = 16
+        textLabel.TextStrokeTransparency = 0.2
+        textLabel.Parent = billboard
+        billboard.Parent = head
+    end
+
+    local highlight = character:FindFirstChild("RoleBox")
+    if not highlight then
+        highlight = Instance.new("Highlight")
+        highlight.Name = "RoleBox"
+        highlight.Adornee = character
+        highlight.FillTransparency = 0.75
+        highlight.OutlineTransparency = 0
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.Parent = character
+    end
+
+    local role, color = getRole(player)
+    billboard.Label.Text = player.Name .. "\n[" .. role .. "]"
+    billboard.Label.TextColor3 = color
+    highlight.FillColor = color
+    highlight.OutlineColor = color
+end
+
+RunService.RenderStepped:Connect(function()
+    if not ESPEnabled then return end
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            applyESP(player)
+        end
+    end
+end)
+
+EspBtn.Activated:Connect(function()
+    ESPEnabled = not ESPEnabled
+    UpdateSwitch(EspTrack, EspKnob, ESPEnabled)
+    if not ESPEnabled then
+        for _, player in ipairs(Players:GetPlayers()) do 
+            removeESP(player) 
+        end
+    end
+end)
