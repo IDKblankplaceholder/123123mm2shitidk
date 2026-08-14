@@ -1,5 +1,5 @@
 -- vibecoded with gemini, do whatever you will with this
--- Modern Luau Custom GUI Hub for MM2 (Bulletproof Layering, Toggle & Drag)
+--- Modern Luau Custom GUI Hub for MM2 (Bulletproof Layering, Toggle & Drag + Target Spin-Fling)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -63,8 +63,8 @@ OpenStroke.Parent = OpenBtn
 --------------------------------------------------------------------
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 320, 0, 290)
-MainFrame.Position = UDim2.new(0.5, -160, 0.5, -145)
+MainFrame.Size = UDim2.new(0, 320, 0, 385)
+MainFrame.Position = UDim2.new(0.5, -160, 0.5, -192)
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -255,6 +255,73 @@ local AimbotBtn, AimTrack, AimKnob = CreateToggleRow("Aimbot Lock", "Locks onto 
 local AutoFarmBtn, FarmTrack, FarmKnob = CreateToggleRow("Auto-Farm Coins", "Collects map coins automatically", 126)
 local EspBtn, EspTrack, EspKnob = CreateToggleRow("Role ESP", "Highlights Murderer & Sheriff", 194)
 
+--------------------------------------------------------------------
+-- TARGET FLING UI SECTION
+--------------------------------------------------------------------
+local FlingRow = Instance.new("Frame")
+FlingRow.Size = UDim2.new(1, -24, 0, 80)
+FlingRow.Position = UDim2.new(0, 12, 0, 262)
+FlingRow.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+FlingRow.BorderSizePixel = 0
+FlingRow.ZIndex = 1002
+FlingRow.Parent = MainFrame
+
+local FlingCorner = Instance.new("UICorner")
+FlingCorner.CornerRadius = UDim.new(0, 8)
+FlingCorner.Parent = FlingRow
+
+local FlingStroke = Instance.new("UIStroke")
+FlingStroke.Color = Color3.fromRGB(35, 35, 45)
+FlingStroke.Thickness = 1
+FlingStroke.Parent = FlingRow
+
+local FlingTxt = Instance.new("TextLabel")
+FlingTxt.Size = UDim2.new(1, -24, 0, 18)
+FlingTxt.Position = UDim2.new(0, 12, 0, 8)
+FlingTxt.BackgroundTransparency = 1
+FlingTxt.Text = "Target Spin Fling"
+FlingTxt.TextColor3 = Color3.fromRGB(240, 240, 240)
+FlingTxt.TextSize = 13
+FlingTxt.Font = Enum.Font.GothamBold
+FlingTxt.TextXAlignment = Enum.TextXAlignment.Left
+FlingTxt.ZIndex = 1003
+FlingTxt.Parent = FlingRow
+
+local FlingBox = Instance.new("TextBox")
+FlingBox.Size = UDim2.new(1, -110, 0, 36)
+FlingBox.Position = UDim2.new(0, 12, 0, 32)
+FlingBox.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+FlingBox.BorderSizePixel = 0
+FlingBox.PlaceholderText = "Target username..."
+FlingBox.PlaceholderColor3 = Color3.fromRGB(110, 110, 130)
+FlingBox.Text = ""
+FlingBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+FlingBox.TextSize = 12
+FlingBox.Font = Enum.Font.Gotham
+FlingBox.ClearTextOnFocus = false
+FlingBox.ZIndex = 1003
+FlingBox.Parent = FlingRow
+
+local BoxCorner = Instance.new("UICorner")
+BoxCorner.CornerRadius = UDim.new(0, 6)
+BoxCorner.Parent = FlingBox
+
+local FlingActionBtn = Instance.new("TextButton")
+FlingActionBtn.Size = UDim2.new(0, 78, 0, 36)
+FlingActionBtn.Position = UDim2.new(1, -90, 0, 32)
+FlingActionBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+FlingActionBtn.BorderSizePixel = 0
+FlingActionBtn.Text = "FLING"
+FlingActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+FlingActionBtn.TextSize = 12
+FlingActionBtn.Font = Enum.Font.GothamBold
+FlingActionBtn.ZIndex = 1003
+FlingActionBtn.Parent = FlingRow
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 6)
+BtnCorner.Parent = FlingActionBtn
+
 local function UpdateSwitch(track, knob, state)
     local trackColor = state and Color3.fromRGB(80, 110, 240) or Color3.fromRGB(40, 40, 52)
     local knobPos = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
@@ -399,15 +466,17 @@ local FARM_SPEED = 50
 local NoclipConnection
 local function ToggleNoclip(state)
     if state then
-        NoclipConnection = RunService.Stepped:Connect(function()
-            if LocalPlayer.Character then
-                for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-                    if part:IsA("BasePart") and part.CanCollide then
-                        part.CanCollide = false
+        if not NoclipConnection then
+            NoclipConnection = RunService.Stepped:Connect(function()
+                if LocalPlayer.Character then
+                    for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                        if part:IsA("BasePart") and part.CanCollide then
+                            part.CanCollide = false
+                        end
                     end
                 end
-            end
-        end)
+            end)
+        end
     else
         if NoclipConnection then
             NoclipConnection:Disconnect()
@@ -601,4 +670,155 @@ EspBtn.Activated:Connect(function()
             removeESP(player) 
         end
     end
+end)
+
+--------------------------------------------------------------------
+-- 4. TARGET SPIN-FLING LOGIC (SMOOTH RECOVERY & NO FLOATING)
+--------------------------------------------------------------------
+local flinging = false
+local flingDied = nil
+
+local function getPlayerByMatch(nameQuery)
+    if not nameQuery or nameQuery == "" then return nil end
+    nameQuery = nameQuery:lower()
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local username = player.Name:lower()
+            local displayName = player.DisplayName:lower()
+            
+            if username:find(nameQuery, 1, true) or displayName:find(nameQuery, 1, true) then
+                return player
+            end
+        end
+    end
+    return nil
+end
+
+local function Unfling()
+    ToggleNoclip(false)
+    if flingDied then 
+        flingDied:Disconnect() 
+        flingDied = nil
+    end
+    flinging = false
+    
+    local myChar = LocalPlayer.Character
+    local myHumanoid = myChar and myChar:FindFirstChildOfClass("Humanoid")
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+
+    if myChar then
+        -- Restore default collisions and physics properties
+        for _, v in ipairs(myChar:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5)
+                v.Massless = false
+                v.AssemblyLinearVelocity = Vector3.zero
+                v.AssemblyAngularVelocity = Vector3.zero
+                v.CanCollide = true
+            end
+        end
+    end
+
+    -- FORCE HUMANOID RECOVERY (Fixes floating animation lock)
+    if myHumanoid and myRoot then
+        myHumanoid.PlatformStand = false
+        myHumanoid.Sit = false
+        
+        -- Cycle state machine to force ground landing
+        myHumanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+        RunService.RenderStepped:Wait()
+        myHumanoid:ChangeState(Enum.HumanoidStateType.Landed)
+        myHumanoid:ChangeState(Enum.HumanoidStateType.Running)
+
+        -- Micro-teleport down slightly to trigger immediate floor collision
+        myRoot.CFrame = myRoot.CFrame * CFrame.new(0, -0.1, 0)
+        -- Instantly kills all active forces on the HRP
+        myRoot.Anchored = true
+        RunService.Stepped:Wait()
+        myRoot.Anchored = false
+    end
+
+    FlingActionBtn.Text = "FLING"
+end
+
+local function FlingTarget(targetQuery)
+    if flinging then 
+        Unfling()
+        return 
+    end
+    
+    local Target = getPlayerByMatch(targetQuery)
+    if not Target or not Target.Character then 
+        FlingActionBtn.Text = "NOT FOUND"
+        task.wait(1.2)
+        FlingActionBtn.Text = "FLING"
+        return 
+    end
+
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local targetRoot = Target.Character:FindFirstChild("HumanoidRootPart") or Target.Character:FindFirstChild("Torso")
+    local myHumanoid = myChar and myChar:FindFirstChildOfClass("Humanoid")
+
+    if not myChar or not myRoot or not targetRoot or not myHumanoid then return end
+
+    local originalCFrame = myRoot.CFrame
+    flinging = true
+    FlingActionBtn.Text = "STOP"
+
+    -- 1. Setup physics properties & disable part collisions
+    for _, child in ipairs(myChar:GetDescendants()) do
+        if child:IsA("BasePart") then
+            child.CustomPhysicalProperties = PhysicalProperties.new(100, 0.3, 0.5, 1, 1)
+            child.CanCollide = false
+        end
+    end
+
+    ToggleNoclip(true)
+
+    flingDied = myHumanoid.Died:Connect(function()
+        Unfling()
+    end)
+
+    -- 2. Spin-Fling Loop with Velocity Purge
+    task.spawn(function()
+        local startTime = tick()
+        local rotAngle = 0
+
+        while flinging and (tick() - startTime < 3.5) do
+            RunService.RenderStepped:Wait()
+
+            if Target.Character and Target.Character:FindFirstChild("HumanoidRootPart") and myChar and myChar:FindFirstChild("HumanoidRootPart") then
+                local tRoot = Target.Character.HumanoidRootPart
+                
+                rotAngle = (rotAngle + 100) % 360
+                
+                myRoot.CFrame = tRoot.CFrame * CFrame.Angles(0, math.rad(rotAngle), math.rad(rotAngle))
+                myRoot.AssemblyAngularVelocity = Vector3.new(0, 999999, 999999)
+                myRoot.AssemblyLinearVelocity = Vector3.new(0, 50, 0)
+            else
+                break
+            end
+        end
+
+        -- Kill residual physics momentum over 3 frames before resetting CFrame
+        if myRoot then
+            for _ = 1, 3 do
+                myRoot.AssemblyLinearVelocity = Vector3.zero
+                myRoot.AssemblyAngularVelocity = Vector3.zero
+                RunService.RenderStepped:Wait()
+            end
+
+            if originalCFrame then
+                myRoot.CFrame = originalCFrame * CFrame.new(0, 0.5, 0)
+            end
+        end
+        
+        Unfling()
+    end)
+end
+
+FlingActionBtn.Activated:Connect(function()
+    FlingTarget(FlingBox.Text)
 end)
